@@ -184,6 +184,50 @@ class RecommendResponse(BaseModel):
     ranking: list[CandidateResponse]
 
 
+class TaskItemInput(BaseModel):
+    """Una tarea dentro del sprint para asignacion grupal."""
+
+    task_id: str = Field(..., description="Identificador unico de la tarea")
+    task_name: str = Field(..., description="Nombre descriptivo de la tarea")
+    task_type: Literal[
+        "Backend", "Frontend", "Testing", "Database", "Documentation", "Management"
+    ]
+    task_complexity: Literal["Low", "Medium", "High"]
+    priority: Literal["Low", "Medium", "High"]
+    estimated_hours: int = Field(..., ge=1, le=200)
+
+
+class AssignRequest(BaseModel):
+    """Payload para POST /assign — distribucion de tareas en un grupo."""
+
+    tasks: list[TaskItemInput] = Field(..., min_length=1, max_length=100)
+    students: list[StudentInput] = Field(..., min_length=1, max_length=50)
+
+
+class TaskAssignmentResponse(BaseModel):
+    task_id: str
+    task_name: str
+    assigned_to: str
+    success_probability: float
+    estimated_hours: int
+    task_type: str
+    task_complexity: str
+    priority: str
+
+
+class WorkloadSummaryResponse(BaseModel):
+    student_name: str
+    assigned_tasks: list[str]
+    total_hours: int
+    available_hours: int
+    utilization_pct: float
+
+
+class AssignResponse(BaseModel):
+    assignments: list[TaskAssignmentResponse]
+    workload: list[WorkloadSummaryResponse]
+
+
 class AppendDataResponse(BaseModel):
     message: str
     total_records: int

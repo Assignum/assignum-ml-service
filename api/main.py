@@ -2,12 +2,13 @@
 API REST con FastAPI para el modelo de predicción de éxito en tareas colaborativas.
 
 Endpoints:
-    GET  /            → Health check
-    GET  /info        → Información del modelo
-    POST /predict     → Predicción individual
-    POST /recommend   → Ranking de candidatos para una tarea
-    POST /data/append → Agregar nuevos registros al dataset histórico
-    POST /model/retrain → Disparar reentrenamiento
+    GET  /               → Health check
+    GET  /info           → Información del modelo
+    POST /predict        → Predicción individual
+    POST /recommend      → Ranking de candidatos para una tarea
+    POST /assign         → Distribucion equitativa de multiples tareas en un grupo
+    POST /data/append    → Agregar nuevos registros al dataset histórico
+    POST /model/retrain  → Disparar reentrenamiento
 """
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
@@ -20,6 +21,10 @@ from api.schemas import (
     RecommendRequest,
     RecommendResponse,
     CandidateResponse,
+    AssignRequest,
+    AssignResponse,
+    TaskAssignmentResponse,
+    WorkloadSummaryResponse,
     NewTaskRecord,
     AppendDataResponse,
     RetrainResponse,
@@ -127,6 +132,98 @@ def recommend(request: RecommendRequest):
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.exception("Error en /recommend")
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+
+# ─── Asignacion grupal ────────────────────────────────────────────────────────
+
+@app.post("/assign", response_model=AssignResponse, tags=["Asignacion"])
+def assign(request: AssignRequest):
+    """
+    Distribuye multiples tareas de un sprint entre los integrantes de un grupo
+    de forma equitativa, balanceando aptitud del estudiante y carga horaria.
+
+    **Logica de asignacion:**
+    - Las tareas mas complejas (mas horas) se asignan primero.
+    - Cada tarea va al estudiante con mayor probabilidad de exito que
+      todavia tenga capacidad horaria disponible.
+    - Si el grupo esta sobrecargado, se asigna igualmente al mas apto.
+
+    **Retorna:**
+    - `assignments`: que tarea fue asignada a que estudiante.
+    - `workload`: resumen de horas y porcentaje de uso por estudiante.
+    """
+    try:
+        from src.assignment import assign_tasks, TaskItem, StudentItem
+        from api.predictor import get_model, get_encoders
+
+        tasks = [
+            TaskItem(
+                task_id=t.task_id,
+                task_name=t.task_name,
+                task_type=t.task_type,
+                task_complexity=t.task_complexity,
+                priority=t.priority,
+                estimated_hours=t.estimated_hours,
+            )
+            for t in request.tasks
+        ]
+        students = [
+            StudentItem(
+                name=s.name,
+                backend_skill=s.backend_skill,
+                frontend_skill=s.frontend_skill,
+                database_skill=s.database_skill,
+                testing_skill=s.testing_skill,
+                documentation_skill=s.documentation_skill,
+                git_github_skill=s.git_github_skill,
+                agile_methodologies_skill=s.agile_methodologies_skill,
+                teamwork_skill=s.teamwork_skill,
+                communication_skill=s.communication_skill,
+                leadership_skill=s.leadership_skill,
+                organization_skill=s.organization_skill,
+                projects_completed=s.projects_completed,
+                available_hours_per_week=s.available_hours_per_week,
+                last_role=s.last_role,
+                last_role_performance=s.last_role_performance,
+                peer_evaluation=s.peer_evaluation,
+            )
+            for s in request.students
+        ]
+
+        model = get_model()
+        encoders = get_encoders()
+        assignments, workload = assign_tasks(tasks, students, model, encoders)
+
+        return AssignResponse(
+            assignments=[
+                TaskAssignmentResponse(
+                    task_id=a.task_id,
+                    task_name=a.task_name,
+                    assigned_to=a.assigned_to,
+                    success_probability=a.success_probability,
+                    estimated_hours=a.estimated_hours,
+                    task_type=a.task_type,
+                    task_complexity=a.task_complexity,
+                    priority=a.priority,
+                )
+                for a in assignments
+            ],
+            workload=[
+                WorkloadSummaryResponse(
+                    student_name=w.student_name,
+                    assigned_tasks=w.assigned_tasks,
+                    total_hours=w.total_hours,
+                    available_hours=w.available_hours,
+                    utilization_pct=w.utilization_pct,
+                )
+                for w in workload
+            ],
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.exception("Error en /assign")
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 

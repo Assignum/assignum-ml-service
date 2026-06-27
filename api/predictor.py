@@ -74,6 +74,14 @@ def recommend_for_task(
     return rank_candidates(task, students, model, encoders)
 
 
+def get_model():
+    return _get_model()
+
+
+def get_encoders():
+    return _get_encoders()
+
+
 def reload_model() -> None:
     """Limpia el caché para forzar la recarga del modelo desde disco."""
     _get_model.cache_clear()
