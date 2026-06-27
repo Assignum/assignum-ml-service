@@ -282,12 +282,12 @@ def _asignacion_2_carga_equitativa_misma_habilidad():
     """
     CASO A2: Tres estudiantes con habilidades similares en Frontend.
     Todas las tareas son del mismo tipo pero de distinto tamano.
-    Esperado: el algoritmo distribuye por horas — nadie carga mas del 50%
-    del sprint aunque todos tengan la misma aptitud ML.
+    Esperado: la tarea mas grande va al primero en cola, las demas
+    se reparten equitativamente — carga final ~12-14h por persona.
     """
     tareas = [
         TaskItem("T1", "Pantalla de login",       "Frontend", "Low",    "Medium",  5),
-        TaskItem("T2", "Dashboard principal",     "Frontend", "High",   "High",   18),
+        TaskItem("T2", "Dashboard principal",     "Frontend", "High",   "High",   12),
         TaskItem("T3", "Pantalla de perfil",      "Frontend", "Medium", "Medium",  8),
         TaskItem("T4", "Componente de notif.",    "Frontend", "Low",    "Low",     4),
         TaskItem("T5", "Pantalla de busqueda",    "Frontend", "Medium", "Medium",  7),
@@ -303,20 +303,22 @@ def _asignacion_2_carga_equitativa_misma_habilidad():
         StudentItem("Bruno",  **{**base, "available_hours_per_week": 20}),
         StudentItem("Carla",  **{**base, "available_hours_per_week": 20}),
     ]
-    return tareas, estudiantes, "ASIG-2 — Misma habilidad, 42h en 60h disponibles. Carga ~14h cada uno."
+    return tareas, estudiantes, "ASIG-2 — Misma habilidad, 36h en 60h disponibles. Carga ~12h por persona."
 
 
 def _asignacion_3_tareas_simples_para_menos_capaces():
     """
-    CASO A3: Un experto (skill=5) y dos junior (skill=2-3) con tareas mixtas.
-    Esperado: el experto recibe la tarea compleja (High), los juniors las simples.
-    Valida que el modelo no sobrecarga al mejor con tareas que cualquiera puede hacer.
+    CASO A3: Un experto (skill=5) y dos junior (skill=2) con tareas mixtas.
+    Esperado: el experto recibe las tareas complejas (High+Medium), cada junior
+    recibe al menos una tarea simple. Valida que el modelo no deja a nadie sin trabajo
+    y no sobrecarga al mejor con tareas que los juniors pueden asumir.
     """
     tareas = [
         TaskItem("T1", "Arquitectura del sistema", "Backend", "High",   "High",   22),
         TaskItem("T2", "CRUD de usuarios",         "Backend", "Low",    "Medium",  6),
         TaskItem("T3", "Validacion de formularios","Backend", "Low",    "Low",     4),
         TaskItem("T4", "Endpoint de busqueda",     "Backend", "Medium", "Medium", 10),
+        TaskItem("T5", "Tests de humo",            "Testing", "Low",    "Low",     4),
     ]
     estudiantes = [
         StudentItem("Experto", backend_skill=5, available_hours_per_week=30,
@@ -338,7 +340,7 @@ def _asignacion_3_tareas_simples_para_menos_capaces():
                     agile_methodologies_skill=2, frontend_skill=3, database_skill=2,
                     testing_skill=2, documentation_skill=2),
     ]
-    return tareas, estudiantes, "ASIG-3 — Experto(skill=5) + 2 Juniors. Tarea High->Experto, simples->Juniors."
+    return tareas, estudiantes, "ASIG-3 — Experto(skill=5) + 2 Juniors. High+Medium->Experto, simples repartidas entre juniors."
 
 
 def _asignacion_4_grupo_sobrecargado():
