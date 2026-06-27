@@ -119,6 +119,9 @@ def assign_tasks(
     sorted_tasks = sorted(tasks, key=lambda t: t.estimated_hours, reverse=True)
 
     assignments: list[TaskAssignment] = []
+    hours_assigned: dict[str, int] = {s.name: 0 for s in students}
+    tasks_assigned: dict[str, list[str]] = {s.name: [] for s in students}
+    total_sprint_hours = sum(t.estimated_hours for t in tasks)
 
     for task in sorted_tasks:
         task_profile = TaskProfile(
@@ -128,58 +131,58 @@ def assign_tasks(
             estimated_hours=task.estimated_hours,
         )
 
-        # Obtener probabilidades ML para todos los estudiantes
         all_candidates = list(profiles.values())
         ranked = rank_candidates(task_profile, all_candidates, model, encoders)
 
-        # Elegir el mejor candidato con capacidad horaria suficiente
-        chosen = None
-        chosen_prob = 0.0
+        # Score final = aptitud ML * equidad de carga
+        #
+        # equidad = 1 - (horas_ya_asignadas / total_horas_sprint)
+        #   → 1.0 si el estudiante no tiene nada asignado (maximo favorecido)
+        #   → cercano a 0 si ya tiene la mayoria del sprint asignado
+        #
+        # Esto balancea activamente: a igual aptitud gana quien tiene menos carga.
+        # La aptitud ML sigue pesando: si alguien tiene el doble de aptitud
+        # puede recibir mas tareas si la diferencia de habilidad lo justifica.
+        best = None
+        best_score = -1.0
 
         for candidate in ranked:
-            avail = remaining_hours[candidate.name]
-            if avail <= 0:
+            if remaining_hours[candidate.name] <= 0:
                 continue
 
-            # Score ajustado: penaliza si la disponibilidad es insuficiente
-            # Si tiene al menos el 50% de las horas requeridas, sigue siendo candidato
-            coverage = min(avail / max(task.estimated_hours, 1), 1.0)
-            if coverage < 0.5:
-                # Prefiere a alguien con mas capacidad; solo usa este si no hay nadie mas
-                adjusted = candidate.success_probability * coverage
-            else:
-                adjusted = candidate.success_probability * coverage
+            carga_relativa = hours_assigned[candidate.name] / max(total_sprint_hours, 1)
+            equidad = 1.0 - carga_relativa
 
-            if chosen is None or adjusted > chosen_prob:
-                chosen = candidate
-                chosen_prob = adjusted
+            # Penalizacion dura si no alcanza ni el 30% de las horas de la tarea
+            cobertura = remaining_hours[candidate.name] / max(task.estimated_hours, 1)
+            if cobertura < 0.3:
+                equidad *= 0.3
 
-        # Si nadie tiene horas (grupo sobrecargado), asignar al que menos horas usa
-        if chosen is None:
-            chosen = ranked[0]
-            chosen_prob = chosen.success_probability
+            score = candidate.success_probability * equidad
 
-        remaining_hours[chosen.name] -= task.estimated_hours
+            if score > best_score:
+                best = candidate
+                best_score = score
+
+        # Fallback: grupo sobrecargado, asignar al mas apto
+        if best is None:
+            best = ranked[0]
+
+        hours_assigned[best.name] += task.estimated_hours
+        remaining_hours[best.name] -= task.estimated_hours
+        tasks_assigned[best.name].append(task.task_name)
         assignments.append(
             TaskAssignment(
                 task_id=task.task_id,
                 task_name=task.task_name,
-                assigned_to=chosen.name,
-                success_probability=round(chosen.success_probability, 4),
+                assigned_to=best.name,
+                success_probability=round(best.success_probability, 4),
                 estimated_hours=task.estimated_hours,
                 task_type=task.task_type,
                 task_complexity=task.task_complexity,
                 priority=task.priority,
             )
         )
-
-    # Construir resumen de carga por estudiante
-    hours_assigned: dict[str, int] = {s.name: 0 for s in students}
-    tasks_assigned: dict[str, list[str]] = {s.name: [] for s in students}
-
-    for a in assignments:
-        hours_assigned[a.assigned_to] += a.estimated_hours
-        tasks_assigned[a.assigned_to].append(a.task_name)
 
     workload = [
         WorkloadSummary(
