@@ -112,6 +112,9 @@ def recommend(request: RecommendRequest):
     El primer estudiante del ranking es la **recomendación** del sistema.
     """
     try:
+        logger.info("POST /recommend | task=%s | students=%s",
+                    request.task.model_dump(),
+                    [s.name for s in request.students])
         results = recommend_for_task(request.task, request.students)
         ranking = [
             CandidateResponse(
