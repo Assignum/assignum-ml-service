@@ -2,17 +2,18 @@
 Esquemas Pydantic para validación de requests y responses de la API.
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic.alias_generators import to_camel
 from typing import Literal
+
+
+_CAMEL = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 # ─── Request schemas ──────────────────────────────────────────────────────────
 
 class PredictRequest(BaseModel):
-    """
-    Payload para el endpoint POST /predict.
-    Combina el perfil del estudiante y las características de la tarea.
-    """
+    model_config = _CAMEL
 
     # Competencias técnicas
     backend_skill: int = Field(..., ge=1, le=5, description="Habilidad backend (1-5)")
@@ -46,36 +47,9 @@ class PredictRequest(BaseModel):
     priority: Literal["Low", "Medium", "High"]
     estimated_hours: int = Field(..., ge=1, le=200)
 
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "backend_skill": 4,
-                "frontend_skill": 2,
-                "database_skill": 3,
-                "testing_skill": 3,
-                "documentation_skill": 2,
-                "git_github_skill": 4,
-                "agile_methodologies_skill": 3,
-                "teamwork_skill": 4,
-                "communication_skill": 3,
-                "leadership_skill": 2,
-                "organization_skill": 3,
-                "projects_completed": 5,
-                "available_hours_per_week": 20,
-                "last_role": "Backend",
-                "last_role_performance": 4,
-                "peer_evaluation": 4,
-                "task_type": "Backend",
-                "task_complexity": "Medium",
-                "priority": "High",
-                "estimated_hours": 15,
-            }
-        }
-    }
-
 
 class StudentInput(BaseModel):
-    """Perfil de estudiante para el endpoint de recomendación."""
+    model_config = _CAMEL
 
     name: str = Field(..., min_length=1, max_length=100)
     backend_skill: int = Field(3, ge=1, le=5)
@@ -99,7 +73,7 @@ class StudentInput(BaseModel):
 
 
 class TaskInput(BaseModel):
-    """Descripción de la tarea para el endpoint de recomendación."""
+    model_config = _CAMEL
 
     task_type: Literal[
         "Backend", "Frontend", "Testing", "Database", "Documentation", "Management"
@@ -110,31 +84,14 @@ class TaskInput(BaseModel):
 
 
 class RecommendRequest(BaseModel):
-    """Payload para POST /recommend."""
+    model_config = _CAMEL
 
     task: TaskInput
     students: list[StudentInput] = Field(..., min_length=1, max_length=50)
 
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "task": {
-                    "task_type": "Backend",
-                    "task_complexity": "Medium",
-                    "priority": "High",
-                    "estimated_hours": 15,
-                },
-                "students": [
-                    {"name": "Luis", "backend_skill": 5, "available_hours_per_week": 20},
-                    {"name": "Ana", "backend_skill": 3, "available_hours_per_week": 15},
-                ],
-            }
-        }
-    }
-
 
 class NewTaskRecord(BaseModel):
-    """Registro de una tarea completada para reentrenamiento."""
+    model_config = _CAMEL
 
     backend_skill: int = Field(..., ge=1, le=5)
     frontend_skill: int = Field(..., ge=1, le=5)
@@ -185,7 +142,7 @@ class RecommendResponse(BaseModel):
 
 
 class TaskItemInput(BaseModel):
-    """Una tarea dentro del sprint para asignacion grupal."""
+    model_config = _CAMEL
 
     task_id: str = Field(..., description="Identificador unico de la tarea")
     task_name: str = Field(..., description="Nombre descriptivo de la tarea")
@@ -198,7 +155,7 @@ class TaskItemInput(BaseModel):
 
 
 class AssignRequest(BaseModel):
-    """Payload para POST /assign — distribucion de tareas en un grupo."""
+    model_config = _CAMEL
 
     tasks: list[TaskItemInput] = Field(..., min_length=1, max_length=100)
     students: list[StudentInput] = Field(..., min_length=1, max_length=50)
@@ -234,7 +191,7 @@ class AppendDataResponse(BaseModel):
 
 
 class RetrainResponse(BaseModel):
-    model_config = {"protected_namespaces": ()}
+    model_config = ConfigDict(protected_namespaces=())
 
     message: str
     model_updated: bool

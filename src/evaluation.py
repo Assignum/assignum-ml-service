@@ -100,12 +100,12 @@ def plot_roc_curve(
 ) -> None:
     with plt.style.context("grayscale"):
         fig, ax = plt.subplots(figsize=(6, 6))
-        RocCurveDisplay.from_estimator(
+        disp = RocCurveDisplay.from_estimator(
             model, X_test, y_test, ax=ax,
             name="Random Forest",
-            color="black",
-            lw=2,
         )
+        disp.line_.set_color("black")
+        disp.line_.set_linewidth(2)
         ax.plot([0, 1], [0, 1], color="gray", linestyle="--", lw=1.5, label="Random classifier")
         ax.set_title("ROC Curve - Random Forest Classifier", fontsize=12, fontweight="bold")
         ax.set_xlabel("False Positive Rate", fontsize=11)
