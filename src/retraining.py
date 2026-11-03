@@ -24,7 +24,7 @@ from datetime import datetime
 from src.data_generation import TASK_TYPES, COMPLEXITIES, PRIORITIES, ROLES
 from src.preprocessing import preprocess_pipeline, validate_dataframe
 from src.training import train_with_grid_search, save_model, get_feature_importances
-from src.evaluation import evaluate_model
+from src.evaluation import evaluate_model, subgroup_fairness_report
 
 DATASET_PATH = Path(__file__).parent.parent / "data" / "raw" / "synthetic_dataset.csv"
 PROCESSED_PATH = Path(__file__).parent.parent / "data" / "processed"
@@ -179,6 +179,8 @@ def retrain_model(
         feature_names = X_train.columns.tolist()
         importance_df = get_feature_importances(new_model, feature_names)
         importance_df.to_csv(PROCESSED_PATH / "feature_importance.csv", index=False)
+        # Revisión de equidad con los datos reales del reentrenamiento
+        subgroup_fairness_report(new_model, X_test, y_test, encoders=encoders)
         _log_retraining(len(df), new_metrics)
         print("Modelo reemplazado exitosamente.")
 

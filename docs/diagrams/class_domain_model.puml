@@ -1,0 +1,73 @@
+@startuml class_domain_model
+skinparam backgroundColor white
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam classAttributeIconSize 0
+skinparam ClassBorderColor black
+skinparam ClassBackgroundColor white
+skinparam ArrowColor black
+
+title Modelo de Dominio - Asignación de Tareas
+
+class Student {
+  + id: String
+  + name: String
+  + skills: List<Skill>
+  + availableHours: Number
+  + projectsCompleted: Number
+  + peerEvaluation: Number
+  + lastRolePerformance: Number
+}
+
+enum Skill {
+  backend
+  frontend
+  database
+  testing
+  documentation
+  git
+  agile
+}
+
+class Task {
+  + id: String
+  + type: String
+  + complexity: Number
+  + priority: String
+  + estimatedHours: Number
+}
+
+class Assignment {
+  + id: String
+  + studentId: String
+  + taskId: String
+  + mlScore: Number
+  + equityFactor: Number
+  + finalScore: Number
+  + status: String
+  + assignedAt: DateTime
+  + reassignedFrom: String [0..1]
+}
+
+class Team {
+  + id: String
+  + members: List<Student>
+  + project: String
+}
+
+Team "1" o-- "1..*" Student : members
+Team "1" -- "0..*" Task : project tasks
+Task "1" -- "1" Assignment : resolved by
+Student "1" -- "0..*" Assignment : assigned to
+Student "1" -- "0..*" Skill : has >
+
+note right of Assignment
+  reassignedFrom es no-nulo
+  cuando la asignación se
+  origina en el fallback
+  Round-Robin (ML Service
+  no respondió a tiempo)
+end note
+
+@enduml

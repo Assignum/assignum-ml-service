@@ -161,15 +161,91 @@ def plot_feature_importance(
     print(f"Feature importance guardada en: {path}")
 
 
+# Rangos de horas disponibles por semana usados en la revisión de equidad
+HOURS_BINS = [0, 10, 20, float("inf")]
+HOURS_LABELS = ["<=10 h", "11-20 h", ">20 h"]
+
+
+def subgroup_fairness_report(
+    model,
+    X_test: pd.DataFrame,
+    y_test: pd.Series,
+    encoders: dict | None = None,
+    threshold: float = 0.5,
+    max_gap: float = 0.10,
+    min_samples: int = 30,
+    save_path: Path | None = None,
+) -> pd.DataFrame:
+    """
+    Revisión de equidad: calcula el F1 por subgrupo y lo compara con el F1 global.
+
+    Subgrupos:
+      - available_hours_per_week en rangos (<=10, 11-20, >20): evita que el modelo
+        perjudique a quien trabaja o tiene menos tiempo libre.
+      - last_role: evita que un rol previo concreto quede sistemáticamente relegado.
+
+    Un subgrupo queda marcado (flagged) si su F1 está más de `max_gap` por debajo del
+    global. Con menos de `min_samples` registros no se evalúa: el F1 sería poco fiable.
+    El reporte se guarda como CSV junto a feature_importance.png.
+    """
+    y_true = pd.Series(y_test).reset_index(drop=True)
+    X = X_test.reset_index(drop=True)
+    y_pred = pd.Series((model.predict_proba(X)[:, 1] >= threshold).astype(int))
+    global_f1 = f1_score(y_true, y_pred, zero_division=0)
+
+    hours_group = pd.cut(X["available_hours_per_week"], bins=HOURS_BINS, labels=HOURS_LABELS)
+    role_group = X["last_role"]
+    if encoders and "last_role" in encoders:
+        role_group = pd.Series(encoders["last_role"].inverse_transform(role_group.astype(int)))
+
+    # Primera fila: el F1 global, que es la referencia contra la que se compara cada subgrupo
+    rows = [{"group": "global", "subgroup": "todos", "n": len(y_true),
+             "f1": round(global_f1, 4), "gap_vs_global": 0.0, "status": "reference"}]
+    for group_name, groups in (("available_hours_per_week", hours_group), ("last_role", role_group)):
+        for subgroup in sorted(groups.dropna().unique(), key=str):
+            mask = (groups == subgroup).to_numpy()
+            n = int(mask.sum())
+            if n < min_samples:
+                rows.append({"group": group_name, "subgroup": str(subgroup), "n": n,
+                             "f1": np.nan, "gap_vs_global": np.nan, "status": "insufficient_data"})
+                continue
+            f1 = f1_score(y_true[mask], y_pred[mask], zero_division=0)
+            gap = global_f1 - f1
+            rows.append({"group": group_name, "subgroup": str(subgroup), "n": n,
+                         "f1": round(f1, 4), "gap_vs_global": round(gap, 4),
+                         "status": "flagged" if gap > max_gap else "ok"})
+
+    report = pd.DataFrame(rows)
+    report.attrs["global_f1"] = global_f1
+
+    print("\n" + "=" * 50)
+    print(f"FAIRNESS REVIEW - F1 POR SUBGRUPO (global F1 = {global_f1:.4f})")
+    print("=" * 50)
+    print(report.to_string(index=False))
+    flagged = report[report["status"] == "flagged"]
+    if len(flagged):
+        print(f"\nATENCION: {len(flagged)} subgrupo(s) con F1 mas de {max_gap:.0%} por debajo del global.")
+    else:
+        print(f"\nNingun subgrupo queda mas de {max_gap:.0%} por debajo del F1 global.")
+
+    path = save_path or (PLOTS_DIR / "fairness_report.csv")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    report.to_csv(path, index=False)
+    print(f"Reporte de equidad guardado en: {path}")
+    return report
+
+
 def full_evaluation_report(
     model,
     X_test: pd.DataFrame,
     y_test: pd.Series,
     importance_df: pd.DataFrame,
+    encoders: dict | None = None,
 ) -> dict:
-    """Ejecuta evaluación completa y genera todos los gráficos."""
+    """Ejecuta evaluación completa, genera todos los gráficos y la revisión de equidad."""
     metrics = evaluate_model(model, X_test, y_test)
     plot_confusion_matrix(model, X_test, y_test)
     plot_roc_curve(model, X_test, y_test)
     plot_feature_importance(importance_df)
+    subgroup_fairness_report(model, X_test, y_test, encoders=encoders)
     return metrics

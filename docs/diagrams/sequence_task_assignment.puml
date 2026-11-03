@@ -1,0 +1,55 @@
+@startuml sequence_task_assignment
+skinparam backgroundColor white
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign center
+skinparam ArrowColor black
+skinparam LifeLineBorderColor black
+skinparam ParticipantBorderColor black
+skinparam ParticipantBackgroundColor white
+skinparam ActorBorderColor black
+
+title Flujo de Asignación de Tareas
+
+actor "Team Leader" as TL
+actor "Estudiante\nAsignado" as ST
+participant "App Móvil" as App
+participant "Backend API" as API
+participant "ML Service" as ML
+database "Firestore" as DB
+participant "FCM" as FCM
+
+TL -> App : Crea tarea
+activate App
+App -> API : POST /tasks (datos de la tarea)
+activate API
+
+API -> API : Compila vector de features\n(estudiante - tarea)
+
+API -> ML : POST /predict\n(vector de features)
+activate ML
+
+alt ML Service responde dentro del timeout
+    ML -> ML : score = P_ML x (1 - carga_relativa_acumulada)
+    ML --> API : Ranking de candidatos
+    deactivate ML
+else Timeout: ML Service no responde
+    deactivate ML
+    API -> API : Fallback Round-Robin\n(selecciona siguiente estudiante en turno)
+end
+
+API -> DB : Persiste asignación\n(Assignment)
+activate DB
+DB --> API : Confirmación de escritura
+DB -> FCM : Dispara notificación push
+deactivate DB
+
+FCM -> ST : Notifica tarea asignada
+
+API --> App : Respuesta (asignación creada)
+deactivate API
+App --> TL : Confirmación en UI
+deactivate App
+
+@enduml

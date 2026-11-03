@@ -37,7 +37,7 @@ def run_training_pipeline(n_samples: int = 1300, fast_mode: bool = True) -> None
     print("\n[5/6] Evaluando en test set...")
     from src.evaluation import full_evaluation_report
     importance_df = get_feature_importances(model, X_train.columns.tolist())
-    metrics = full_evaluation_report(model, X_test, y_test, importance_df)
+    metrics = full_evaluation_report(model, X_test, y_test, importance_df, encoders=encoders)
 
     processed_path = Path("data/processed")
     processed_path.mkdir(parents=True, exist_ok=True)
